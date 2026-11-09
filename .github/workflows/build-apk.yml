@@ -1,0 +1,70 @@
+name: Construir Matibatidos POS Mejoras 2.1.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - principal
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compilar APK Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar archivos del repositorio
+        uses: actions/checkout@v4
+
+      - name: Verificar y extraer proyecto
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="Matibatidos_POS_Proyecto_Definitivo_Independiente_ACTUALIZADO.zip"
+
+          if [ ! -f "$ZIP" ]; then
+            echo "::error::No se encontró el archivo ZIP en la raíz del repositorio."
+            exit 1
+          fi
+
+          mkdir -p build-project
+          unzip -q "$ZIP" -d build-project
+
+          if [ ! -f "build-project/MatibatidosAPK/settings.gradle" ] || [ ! -f "build-project/MatibatidosAPK/app/build.gradle" ]; then
+            echo "::error::El ZIP no contiene la estructura Android esperada."
+            find build-project -maxdepth 4 -type f | sort | head -200
+            exit 1
+          fi
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Compilar APK con mejoras
+        working-directory: build-project/MatibatidosAPK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verificar APK generada
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build-project/MatibatidosAPK/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+
+      - name: Publicar APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Matibatidos-POS-Mejoras-2.1.0
+          path: build-project/MatibatidosAPK/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
